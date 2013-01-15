@@ -2,36 +2,97 @@
 # Hangman!
 class HangmanGame
 
-    attr_reader :dictionary
+    attr_reader :dictionary, :incorrect_guesses, :current_showing_word
 
     DICTIONARY = "2of4brif.txt"
-    MAX_GUESSES = 10
+    MAX_GUESSES = 5
     MIN_WORD_SIZE = 4
 
     def initialize(num_of_humans)
         @num_of_humans = num_of_humans
+        @incorrect_guesses = []
         print_instructions
         create_players
-        choose_roles if @num_of_humans == 1
     end
 
 
     def play
 
-        secret_word = @checker.choose_word
+        read_dictionary
+        @secret_word = @checker.choose_word
+        @current_showing_word = "_" * @secret_word.size
+        trim_dictionary
+
+        print_game
 
         until game_over?
             current_guess = @guesser.guess
-            change_gameboard if @checker.valid_guess?(current_guess)
+            change_gameboard(current_guess)
             print_game
         end
 
-        print winner
+        if victory?
+            puts "GOOD JOB"
+        else
+            puts "FAIL. The word was #{@secret_word}"
+        end
+    end
+
+    def print_game
+        puts "Game board:"
+        @current_showing_word.each_char do |c|
+            print "#{c} "
+        end
+        puts "incorrect_guesses: #{@incorrect_guesses.inspect}"
+    end
+
+    def change_gameboard(current_guess)
+        if @secret_word.include?(current_guess)
+            @secret_word.split('').each_with_index do |c, i|
+                if c == current_guess
+                    @current_showing_word[i] = c
+                end
+            end
+            prune_dictionary
+        else
+            @incorrect_guesses << current_guess
+        end
     end
 
 
     def read_dictionary
-        @dictionary = File.readlines(DICTIONARY) {|line| line.chomp}
+        @dictionary = []
+        File.foreach("2of4brif.txt") {|line| @dictionary << line.strip.downcase  }
+    end
+
+    def trim_dictionary
+        @dictionary.select! {|word| word.size == @secret_word.size}
+    end
+
+    def prune_dictionary
+        temp_dic = []
+        words_showing = 0
+
+        @current_showing_word.each_char do |c|
+            if ("a".."z").include?(c)
+                words_showing +=1
+            end
+        end
+        #puts "Dictionary: #{@dictionary.inspect}"
+        @dictionary.each do |word|
+            chars_same = 0
+
+            word.split("").each_with_index do |char, i|
+                if @current_showing_word[i] == char
+                    chars_same +=1
+                end
+            end
+
+            if chars_same == words_showing
+                    temp_dic << word
+            end
+        end
+        @dictionary =  temp_dic
     end
 
     def print_instructions
@@ -68,55 +129,76 @@ class HangmanGame
     end
 
     def victory?
-    end
-
-    def failure?
-    end
-
-
-end
-
-class Player
-    def initialize(hangman_game)
-        @hangman_game = hangman_game
-    end
-end
-
-class AI < Player
-
-    def choose_word
-        chosen_word = @hangman_game.dictionary.sample until chosen_word.size >= MIN_WORD_SIZE
-    end
-
-    def valid_guess?(current_guess)
-    end
-
-    def guess
-    end
-
-end
-
-class Human < Player
-
-    def choose_word
-        while true
-            puts "Choose your word.  It must be at least #{MIN_WORD_SIZE} letters."
-            chosen_word = gets.chomp
-            return chosen_word if chosen_word.size >= MIN_WORD_SIZE
+        if @current_showing_word.include?("_")
+            false
+        else
+            true
         end
     end
 
-    def valid_guess?(current_guess)
+    def failure?
+        @incorrect_guesses.size >= MAX_GUESSES
+    end
+
+
+end
+
+
+class AI
+
+    def initialize(hangman_game)
+        @hangman_game = hangman_game
+    end
+
+    def choose_word
+        chosen_word = ""
+        until chosen_word.size >= HangmanGame::MIN_WORD_SIZE
+            chosen_word = @hangman_game.dictionary.sample
+        end
+        chosen_word
+    end
+
+    # returns a guessed letter
+    def guess
+        @letter_frequency = Hash.new(0)
+        @hangman_game.dictionary.join.each_char do |c|
+            if @hangman_game.incorrect_guesses.include?(c) || @hangman_game.current_showing_word.split("").include?(c)
+                @letter_frequency[c] = 0
+            else
+                @letter_frequency[c] +=1
+            end
+        end
+        return @letter_frequency.max_by { |k,v| v }[0]
+    end
+
+end
+
+class Human
+
+    def initialize(hangman_game)
+        @hangman_game = hangman_game
+    end
+
+    def choose_word
+        while true
+            puts "Choose your word.  It must be at least #{HangmanGame::MIN_WORD_SIZE} letters."
+            chosen_word = gets.chomp
+            return chosen_word if chosen_word.size >= HangmanGame::MIN_WORD_SIZE
+        end
     end
 
     def guess
+        puts "Guess a letter:"
+        gets.downcase.chomp
     end
 
 end
 
 
 
-
+# SCRIPT
+h = HangmanGame.new(0)
+h.play
 
 
 
